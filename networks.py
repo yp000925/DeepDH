@@ -19,7 +19,7 @@ class RECLoss(nn.Module):
         self.deltaX = 1.67
         self.deltaY = 1.67
         self.prop = self.propagator(self.Nx,self.Ny,self.z,self.wavelength,self.deltaX,self.deltaY)
-        self.prop = self.prop.cuda()
+        # self.prop = self.prop.cuda()
 
     def propagator(self,Nx,Ny,z,wavelength,deltaX,deltaY):
         k = 1/wavelength
@@ -114,8 +114,8 @@ def iwt_init(x):
     x4 = x[:, out_channel * 3:out_channel * 4, :, :] / 2
     
 
-    h = torch.zeros([out_batch, out_channel, out_height, out_width]).float().cuda()
-
+    # h = torch.zeros([out_batch, out_channel, out_height, out_width]).float().cuda()
+    h = torch.zeros([out_batch, out_channel, out_height, out_width]).float()
     h[:, :, 0::2, 0::2] = x1 - x2 - x3 + x4
     h[:, :, 1::2, 0::2] = x1 - x2 + x3 - x4
     h[:, :, 0::2, 1::2] = x1 + x2 - x3 - x4
