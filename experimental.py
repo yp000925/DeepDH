@@ -38,10 +38,10 @@ hologram = import_image(hologram_path, modifiers=[p1, p2, p3])
 # plt.imshow(np.squeeze(hologram), cmap='gray')
 
 phase = propagator(Nx,Ny,z,wavelength,deltaX,deltaY)
-eta = np.fft.ifft2(np.fft.fft2(hologram)*np.fft.fftshift(np.conj(phase)))
-# plt.figure(figsize=(20,15))
-# plt.imshow(np.squeeze(np.abs(eta)), cmap='gray')
-
+eta = np.fft.ifft2(np.fft.fft2(hologram.numpy())*np.fft.fftshift(np.conj(phase)))
+plt.figure(figsize=(20,15))
+plt.imshow(np.squeeze(np.abs(eta)), cmap='gray')
+plt.show()
 
 criterion_1 = RECLoss()
 model = Net().cuda()
@@ -53,8 +53,8 @@ epoch_1 = 5000
 epoch_2 = 2000
 period = 100
 eta = torch.from_numpy(np.concatenate([np.real(eta)[np.newaxis,np.newaxis,:,:], np.imag(eta)[np.newaxis,np.newaxis,:,:]], axis = 1))
-holo = torch.from_numpy(np.concatenate([np.real(hologram)[np.newaxis,np.newaxis,:,:], np.imag(hologram)[np.newaxis,np.newaxis,:,:]], axis = 1))
-
+# holo = torch.from_numpy(np.concatenate([np.real(hologram)[np.newaxis,np.newaxis,:,:], np.imag(hologram)[np.newaxis,np.newaxis,:,:]], axis = 1))
+holo = torch.cat([hologram[None,None,:,:],torch.zeros_like(hologram)[None,None,:,:]],dim=1)
 for i in range(epoch_1):
     in_img = eta.to(device)
     target = holo.to(device)
