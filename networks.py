@@ -1,4 +1,4 @@
-import torch  
+import torch
 import torch.nn as nn
 import numpy as np
 import PIL.Image as Image
@@ -10,16 +10,16 @@ import torch.nn.functional as F
 
 
 class RECLoss(nn.Module):
-    def __init__(self):
+    def __init__(self,Nx = 512,Ny = 512,z = 857,wavelength = 0.635,deltaX = 1.67,deltaY = 1.67):
         super(RECLoss,self).__init__()
-        self.Nx = 1000
-        self.Ny = 1000
-        self.z = 857
-        self.wavelength = 0.635
-        self.deltaX = 1.67
-        self.deltaY = 1.67
+        self.Nx = Nx
+        self.Ny = Ny
+        self.z = z
+        self.wavelength = wavelength
+        self.deltaX = deltaX
+        self.deltaY = deltaY
         self.prop = self.propagator(self.Nx,self.Ny,self.z,self.wavelength,self.deltaX,self.deltaY)
-        # self.prop = self.prop.cuda()
+        self.prop = self.prop.cuda()
 
     def propagator(self,Nx,Ny,z,wavelength,deltaX,deltaY):
         k = 1/wavelength
@@ -29,10 +29,10 @@ class RECLoss(nn.Module):
         x_new = np.repeat(x,Ny,axis=0)
         kp = np.sqrt(y_new**2+x_new**2)
         term=k**2-kp**2
-        term=np.maximum(term,0) 
+        term=np.maximum(term,0)
         phase = np.exp(1j*2*np.pi*z*np.sqrt(term))
         return torch.from_numpy(np.concatenate([np.real(phase)[np.newaxis,:,:,np.newaxis], np.imag(phase)[np.newaxis,:,:,np.newaxis]], axis = 3))
-   
+
 
     def roll_n(self, X, axis, n):
         f_idx = tuple(slice(None, None, None) if i != axis else slice(0, n, None) for i in range(X.dim()))
@@ -57,7 +57,7 @@ class RECLoss(nn.Module):
             real = self.roll_n(real, axis=dim, n=real.size(dim)//2)
             imag = self.roll_n(imag, axis=dim, n=imag.size(dim)//2)
         return torch.stack((real, imag), -1)  # last dim=2 (real&imag)
-    
+
     def complex_mult(self, x, y):
         real_part = x[:,:,:,0]*y[:,:,:,0]-x[:,:,:,1]*y[:,:,:,1]
         real_part = real_part.unsqueeze(3)
@@ -70,23 +70,23 @@ class RECLoss(nn.Module):
         y = y.squeeze(2)
         x = x.permute([0,2,3,1])
         y = y.permute([0,2,3,1])
-        
-        
+
+
         cEs = self.batch_fftshift2d(torch.fft(x,3,normalized=True))
         cEsp = self.complex_mult(cEs,self.prop)
-        
+
         S = torch.ifft(self.batch_ifftshift2d(cEsp),3,normalized=True)
         Se = S[:,:,:,0]
-        
+
         mse = torch.mean(torch.abs(Se-y[:,:,:,0]))/2
         return mse
 
 
     def _tensor_size(self,t):
         return t.size()[1]*t.size()[2]*t.size()[3]
-    
-    
-    
+
+
+
 def dwt_init(x):
 
     x01 = x[:, :, 0::2, :] / 2
@@ -112,23 +112,23 @@ def iwt_init(x):
     x2 = x[:, out_channel:out_channel * 2, :, :] / 2
     x3 = x[:, out_channel * 2:out_channel * 3, :, :] / 2
     x4 = x[:, out_channel * 3:out_channel * 4, :, :] / 2
-    
 
-    # h = torch.zeros([out_batch, out_channel, out_height, out_width]).float().cuda()
-    h = torch.zeros([out_batch, out_channel, out_height, out_width]).float()
+
+    h = torch.zeros([out_batch, out_channel, out_height, out_width]).float().cuda()
+    # h = torch.zeros([out_batch, out_channel, out_height, out_width]).float()
     h[:, :, 0::2, 0::2] = x1 - x2 - x3 + x4
     h[:, :, 1::2, 0::2] = x1 - x2 + x3 - x4
     h[:, :, 0::2, 1::2] = x1 + x2 - x3 - x4
     h[:, :, 1::2, 1::2] = x1 + x2 + x3 + x4
 
     return h
-    
+
 # finish the model
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
-        
-        self.conv_init = nn.Sequential( 
+
+        self.conv_init = nn.Sequential(
             nn.Conv2d(2, 16, 5, stride=1, padding=2),
             nn.ReLU(True),
             nn.BatchNorm2d(16),
@@ -136,8 +136,8 @@ class Net(nn.Module):
             nn.ReLU(True),
             nn.BatchNorm2d(16),
         )
-        
-        self.conv_1 = nn.Sequential(   
+
+        self.conv_1 = nn.Sequential(
             nn.Conv2d(64, 64, 3, stride=1, padding=1),
             nn.ReLU(True),
             nn.BatchNorm2d(64),
@@ -145,8 +145,8 @@ class Net(nn.Module):
             nn.ReLU(True),
             nn.BatchNorm2d(64),
         )
-        
-        self.conv_2 = nn.Sequential(   
+
+        self.conv_2 = nn.Sequential(
             nn.Conv2d(256, 256, 3, stride=1, padding=1),
             nn.ReLU(True),
             nn.BatchNorm2d(256),
@@ -154,16 +154,16 @@ class Net(nn.Module):
             nn.ReLU(True),
             nn.BatchNorm2d(256),
         )
-        
-        self.conv_nonlinear = nn.Sequential(   
+
+        self.conv_nonlinear = nn.Sequential(
             nn.Conv2d(1024, 1024, 3, stride=1, padding=1),
             nn.ReLU(True),
             nn.BatchNorm2d(1024),
             nn.Conv2d(1024, 16, 3, stride=1, padding=1),
             nn.Tanh(),
         )
-        
-        
+
+
         self.deconv_1 = nn.Sequential(
             nn.Conv2d(16, 1024, 3, stride=1, padding=1),
             nn.ReLU(True),
@@ -172,7 +172,7 @@ class Net(nn.Module):
             nn.ReLU(True),
             nn.BatchNorm2d(1024),
         )
-        
+
         self.deconv_2 = nn.Sequential(
             nn.Conv2d(256, 256, 3, stride=1, padding=1),
             nn.ReLU(True),
@@ -181,7 +181,7 @@ class Net(nn.Module):
             nn.ReLU(True),
             nn.BatchNorm2d(256),
         )
-        
+
         self.deconv_3 = nn.Sequential(
             nn.Conv2d(64, 64, 3, stride=1, padding=1),
             nn.ReLU(True),
@@ -190,7 +190,7 @@ class Net(nn.Module):
             nn.ReLU(True),
             nn.BatchNorm2d(64),
         )
-        
+
         self.deconv_4 = nn.Sequential(
             nn.Conv2d(16, 16, 3, stride=1, padding=1),
             nn.ReLU(True),
@@ -200,8 +200,8 @@ class Net(nn.Module):
             #nn.BatchNorm2d(16),
             nn.Conv2d(16, 2, 3, stride=1, padding=1),
         )
-        
-    
+
+
     def forward(self,x):
         x = x.float()
         x = self.conv_init(x)
@@ -211,7 +211,7 @@ class Net(nn.Module):
         x = self.conv_2(x)
         x = dwt_init(x)
         x = self.conv_nonlinear(x)
-        
+
         x = self.deconv_1(x)
         x = iwt_init(x)
         x = self.deconv_2(x)
